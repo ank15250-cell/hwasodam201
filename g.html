@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>사다리 게임</title>
+<style>
+    *{
+        box-sizing:border-box;
+        margin:0;
+        padding:0;
+        font-family:Arial, sans-serif;
+    }
+
+    body{
+        background:#f4f6f9;
+        display:flex;
+        justify-content:center;
+        align-items:flex-start;
+        min-height:100vh;
+        padding:30px;
+    }
+
+    .container{
+        width:100%;
+        max-width:1000px;
+        background:white;
+        border-radius:20px;
+        padding:25px;
+        box-shadow:0 10px 30px rgba(0,0,0,0.1);
+    }
+
+    h1{
+        text-align:center;
+        margin-bottom:20px;
+        color:#333;
+    }
+
+    .controls{
+        display:flex;
+        gap:10px;
+        flex-wrap:wrap;
+        margin-bottom:20px;
+        justify-content:center;
+    }
+
+    input{
+        padding:10px;
+        border:1px solid #ccc;
+        border-radius:10px;
+        width:120px;
+        text-align:center;
+    }
+
+    button{
+        padding:10px 16px;
+        border:none;
+        border-radius:10px;
+        background:#4f46e5;
+        color:white;
+        cursor:pointer;
+        font-size:14px;
+        transition:0.2s;
+    }
+
+    button:hover{
+        background:#4338ca;
+    }
+
+    #ladderWrapper{
+        overflow:auto;
+        margin-top:20px;
+    }
+
+    canvas{
+        background:white;
+        border:1px solid #ddd;
+        border-radius:10px;
+    }
+
+    .playerButtons{
+        display:flex;
+        justify-content:center;
+        gap:10px;
+        margin-top:20px;
+        flex-wrap:wrap;
+    }
+
+    .playerButtons button{
+        background:#10b981;
+    }
+
+    .playerButtons button:hover{
+        background:#059669;
+    }
+
+    .result{
+        margin-top:20px;
+        text-align:center;
+        font-size:20px;
+        font-weight:bold;
+        color:#111827;
+    }
+</style>
+</head>
+<body>
+
+<div class="container">
+    <h1>사다리 게임</h1>
+
+    <div class="controls">
+        <input type="number" id="count" min="2" max="10" value="4">
+        <button onclick="createGame()">게임 생성</button>
+    </div>
+
+    <div id="ladderWrapper">
+        <canvas id="ladderCanvas"></canvas>
+    </div>
+
+    <div class="playerButtons" id="playerButtons"></div>
+
+    <div class="result" id="result"></div>
+</div>
+
+<script>
+const canvas = document.getElementById("ladderCanvas");
+const ctx = canvas.getContext("2d");
+
+let players = [];
+let results = [];
+let horizontalLines = [];
+let lineX = [];
+let topY = 60;
+let bottomY = 500;
+let ladderHeight = bottomY - topY;
+
+function createGame(){
+    const count = parseInt(document.getElementById("count").value);
+
+    players = [];
+    results = [];
+    horizontalLines = [];
+    lineX = [];
+
+    for(let i=0; i<count; i++){
+        players.push("P" + (i+1));
+        results.push("결과 " + (i+1));
+    }
+
+    results.sort(() => Math.random() - 0.5);
+
+    canvas.width = count * 120;
+    canvas.height = 620;
+
+    for(let i=0; i<count; i++){
+        lineX.push(60 + i * 120);
+    }
+
+    generateLines(count);
+    drawLadder(count);
+    createButtons();
+    document.getElementById("result").innerText = "";
+}
+
+function generateLines(count){
+    const rows = 12;
+
+    for(let y=0; y<rows; y++){
+        for(let x=0; x<count-1; x++){
+
+            if(Math.random() < 0.45){
+
+                const exists = horizontalLines.some(line =>
+                    line.y === y &&
+                    (line.x === x || line.x === x-1 || line.x === x+1)
+                );
+
+                if(!exists){
+                    horizontalLines.push({x, y});
+                }
+            }
+        }
+    }
+}
+
+function drawLadder(count, highlightPath=[]){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "#333";
+
+    for(let i=0; i<count; i++){
+
+        ctx.beginPath();
+        ctx.moveTo(lineX[i], topY);
+        ctx.lineTo(lineX[i], bottomY);
+        ctx.stroke();
+
+        ctx.fillStyle = "#111";
+        ctx.font = "16px Arial";
+        ctx.textAlign = "center";
+
+        ctx.fillText(players[i], lineX[i], 30);
+        ctx.fillText(results[i], lineX[i], 550);
+    }
+
+    horizontalLines.forEach(line=>{
+        const yPos = topY + (line.y + 1) * (ladderHeight / 13);
+
+        ctx.beginPath();
+        ctx.moveTo(lineX[line.x], yPos);
+        ctx.lineTo(lineX[line.x + 1], yPos);
+        ctx.stroke();
+    });
+
+    if(highlightPath.length > 0){
+        ctx.strokeStyle = "#ef4444";
+        ctx.lineWidth = 5;
+
+        ctx.beginPath();
+
+        for(let i=0; i<highlightPath.length; i++){
+            const p = highlightPath[i];
+
+            if(i===0){
+                ctx.moveTo(p.x, p.y);
+            }else{
+                ctx.lineTo(p.x, p.y);
+            }
+        }
+
+        ctx.stroke();
+    }
+}
+
+function createButtons(){
+    const wrap = document.getElementById("playerButtons");
+    wrap.innerHTML = "";
+
+    players.forEach((p, index)=>{
+        const btn = document.createElement("button");
+        btn.innerText = p + " 선택";
+        btn.onclick = ()=>play(index);
+        wrap.appendChild(btn);
+    });
+}
+
+function play(startIndex){
+
+    let current = startIndex;
+    let path = [];
+
+    let currentX = lineX[current];
+    let currentY = topY;
+
+    path.push({x:currentX, y:currentY});
+
+    const sortedLines = [...horizontalLines].sort((a,b)=>a.y-b.y);
+
+    sortedLines.forEach(line=>{
+
+        const yPos = topY + (line.y + 1) * (ladderHeight / 13);
+
+        path.push({x:currentX, y:yPos});
+
+        if(line.x === current){
+            current++;
+            currentX = lineX[current];
+            path.push({x:currentX, y:yPos});
+        }
+        else if(line.x + 1 === current){
+            current--;
+            currentX = lineX[current];
+            path.push({x:currentX, y:yPos});
+        }
+    });
+
+    path.push({x:currentX, y:bottomY});
+
+    drawLadder(players.length, path);
+
+    document.getElementById("result").innerText =
+        players[startIndex] + " → " + results[current];
+}
+
+createGame();
+</script>
+
+</body>
+</html>
